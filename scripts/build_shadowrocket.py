@@ -14,6 +14,27 @@ LISTS = {
     "category-ban-ru": "PROXY",
 }
 
+def main() -> None:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    available = sorted(p.name for p in RAW_DIR.glob("*.txt"))
+
+    for name in LISTS:
+        src = RAW_DIR / f"{name}.txt"
+        if not src.exists():
+            raise FileNotFoundError(
+                f"Missing source list: {src}. Available files: {available}"
+            )
+
+LISTS = {
+    "private": "DIRECT",
+    "category-ru": "DIRECT",
+    "apple": "DIRECT",
+    "twitch": "DIRECT",
+    "youtube": "PROXY",
+    "category-ban-ru": "PROXY",
+}
+
 TYPE_MAP = {
     "domain": "DOMAIN-SUFFIX",
     "full": "DOMAIN",
