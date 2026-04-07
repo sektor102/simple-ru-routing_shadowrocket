@@ -16,6 +16,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      ANTIFILTER_DOWNLOAD: https://community.antifilter.download/list/domains.lst
+      REFILTER_ALL: https://raw.githubusercontent.com/1andrevich/Re-filter-lists/refs/heads/main/domains_all.lst
+
     steps:
       - name: Checkout current repo
         uses: actions/checkout@v4
@@ -37,14 +41,64 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Generate flat source lists
-        working-directory: upstream-geosite
+      - name: Prepare source data lists
+        shell: bash
         run: |
-          mkdir -p ../dist/raw
-          go run . \
-            -datapath ./data \
-            -outputdir ../dist/raw \
-            -exportlists "private,category-ru,apple,twitch,youtube,category-ban-ru"
+          set -euo pipefail
+          mkdir -p data
+
+          declare -A fetched
+
+          fetch_list() {
+            local name="$1"
+            [[ "${fetched[$name]:-}" == "1" ]] && return
+            fetched[$name]=1
+
+            curl --fail -s -o "data/$name" \
+              "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$name"
+
+            readarray -t includes < <(
+              grep '^include:' "data/$name" \
+                | cut -d':' -f2- \
+                | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+                || true
+            )
+
+            for inc in "${includes[@]}"; do
+              [[ -n "$inc" ]] && fetch_list "$inc"
+            done
+          }
+
+          for root in category-ru apple private youtube; do
+            fetch_list "$root"
+          done
+
+          cp upstream-geosite/data/twitch data/twitch
+
+          mkdir -p filtered
+          curl -sSL "$ANTIFILTER_DOWNLOAD" -o filtered/antifilter.lst
+          curl -sSL "$REFILTER_ALL" -o filtered/refilter.lst
+
+          (
+            cat filtered/antifilter.lst filtered/refilter.lst \
+            | grep -E '\.(ru|su|xn--80adxhks|xn--80asehdb|xn--80aswg|xn--c1avg|xn--d1acj3b|xn--p1acf|xn--p1ai)$'
+          ) | sort | uniq > data/category-ban-ru
+
+          echo "Prepared data files:"
+          ls -R data
+
+      - name: Generate flat source lists
+        run: |
+          mkdir -p dist/raw
+          cd upstream-geosite
+          go mod tidy
+          go run main.go \
+            --datapath=../data \
+            --outputdir=../dist/raw \
+            --exportlists=category-ban-ru,category-ru,apple,twitch,youtube,private
+          cd ..
+          echo "Generated raw files:"
+          ls -R dist/raw
 
       - name: Build Shadowrocket lists and config
         run: |
