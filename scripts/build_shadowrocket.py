@@ -14,27 +14,6 @@ LISTS = {
     "category-ban-ru": "PROXY",
 }
 
-def main() -> None:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    available = sorted(p.name for p in RAW_DIR.glob("*.txt"))
-
-    for name in LISTS:
-        src = RAW_DIR / f"{name}.txt"
-        if not src.exists():
-            raise FileNotFoundError(
-                f"Missing source list: {src}. Available files: {available}"
-            )
-
-LISTS = {
-    "private": "DIRECT",
-    "category-ru": "DIRECT",
-    "apple": "DIRECT",
-    "twitch": "DIRECT",
-    "youtube": "PROXY",
-    "category-ban-ru": "PROXY",
-}
-
 TYPE_MAP = {
     "domain": "DOMAIN-SUFFIX",
     "full": "DOMAIN",
@@ -52,7 +31,6 @@ def convert_line(line: str) -> str | None:
     if not line or line.startswith("#"):
         return None
 
-    # У экспортёра возможны хвосты с атрибутами вида :@ads
     line = line.split(":@", 1)[0]
 
     if ":" not in line:
@@ -117,12 +95,16 @@ FINAL,PROXY
 def main() -> None:
     ensure_dir(OUT_DIR)
 
+    available = sorted(p.name for p in RAW_DIR.glob("*.txt"))
+
     for name in LISTS:
         src = RAW_DIR / f"{name}.txt"
         dst = OUT_DIR / f"{name}.list"
 
         if not src.exists():
-            raise FileNotFoundError(f"Missing source list: {src}")
+            raise FileNotFoundError(
+                f"Missing source list: {src}. Available files: {available}"
+            )
 
         convert_file(src, dst)
 
