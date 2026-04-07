@@ -1,0 +1,65 @@
+name: Build Shadowrocket RU routing
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 4"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: shadowrocket-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repo
+        uses: actions/checkout@v4
+
+      - name: Checkout upstream geosite repo
+        uses: actions/checkout@v4
+        with:
+          repository: frayZV/simple-ru-geosite
+          ref: master
+          path: upstream-geosite
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: upstream-geosite/go.mod
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate flat source lists
+        working-directory: upstream-geosite
+        run: |
+          mkdir -p ../dist/raw
+          go run . \
+            -datapath ./data \
+            -outputdir ../dist/raw \
+            -exportlists "private,category-ru,apple,twitch,youtube,category-ban-ru"
+
+      - name: Build Shadowrocket lists and config
+        run: |
+          python scripts/build_shadowrocket.py
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add release/
+          git commit -m "chore: refresh Shadowrocket routing"
+          git push
